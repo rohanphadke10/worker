@@ -51,6 +51,7 @@ export default {
         object.writeHttpMetadata(headers);
         headers.set("etag", object.httpEtag);
         return new Response(object.body, {
+		  status: 200,
           headers
         });
     };   
