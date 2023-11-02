@@ -27,58 +27,41 @@ export interface Env {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		const url = new URL(request.url);
-    const key = url.pathname.slice(1);
-    const keyname = key.substring(key.lastIndexOf('/') + 1).toLowerCase();
-    if (keyname != 'secure') {
-      //const keyname = key.toLowerCase();
-      //return new Response (keyname)
-      const filename = keyname + '.png'
-      //return new Response (filename)
-      const object = await env.MY_BUCKET.get(filename);
-	  const headers = new Headers();
+	const url = new URL(request.url);
+    const keyname = url.pathname.substring(url.pathname.lastIndexOf("/") + 1).toLowerCase(); //Parse the path from request URL
+    if (keyname == "secure") { //If path is '/secure', serve the HTML message
+        const { EMAIL, TIMESTAMP, COUNTRY } = getUserInfo(request);
+        const countryFlagURL = `https://tunnel.rohanphadke.com/secure/${COUNTRY}`; //Redirect to country flag URL
+        const countryFlagHTML = `<a href="${countryFlagURL}">${COUNTRY}</a>`;
+        const responseBody = `${EMAIL} authenticated at ${TIMESTAMP} from ${countryFlagHTML}`;
+        return new Response(responseBody, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html"
+        }
+      })
+    }
+      else {
+        const filename = keyname + ".png"; //Append '.png' to filename due to format of image files stored in R2
+        const object = await env.MY_BUCKET.get(filename);
+        if (object === null) {
+          return new Response("Object Not Found", { status: 404 });
+        }
+        const headers = new Headers();
         object.writeHttpMetadata(headers);
-        headers.set('etag', object.httpEtag);
-
+        headers.set("etag", object.httpEtag);
         return new Response(object.body, {
-          headers,
+          headers
         });
-      if (object === null) {
-        return new Response('Object Not Found', { status: 404 });
-    }}
-    else {
-      const { EMAIL, TIMESTAMP, COUNTRY } = getUserInfo(request);
-      const countryFlagURL = `https://tunnel.rohanphadke.com/secure/${COUNTRY}`;
-      const countryFlagHTML = `<a href="${countryFlagURL}">${COUNTRY}</a>`;
-      const responseBody = `${EMAIL} authenticated at ${TIMESTAMP} from ${countryFlagHTML}`;
-
-      return new Response(responseBody, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html',
-        },
-      });
-  }
-  //} else {
-    // Implement a redirect or return an unauthorized response
-    //return new Response('Unauthorized', { status: 401 });
-  //}
+    };   
 }
 }
-// Implement your authentication logic here
-//function checkAuthentication(request) {
-  // You need to implement your authentication logic here
-  // Return true if the user is authenticated, otherwise return false.
-  // You may use request headers or cookies to check the user's authentication status.
-  //return true; // Replace with your authentication logic
-//}
 
-// Implement a function to get user information (EMAIL, TIMESTAMP, COUNTRY) based on the request
 function getUserInfo(request) {
-  const EMAIL = request.headers.get('Cf-Access-Authenticated-User-Email');
+  const EMAIL = request.headers.get('Cf-Access-Authenticated-User-Email'); //Collect User email from request header
   const currentDate = new Date();
-  const TIMESTAMP = currentDate.getTime();
-  const COUNTRY = request.headers.get('Cf-Ipcountry');
+  const TIMESTAMP = currentDate.getTime(); //Get current timestamp
+  const COUNTRY = request.headers.get('Cf-Ipcountry'); //Collect user country from request header
 
   return { EMAIL, TIMESTAMP, COUNTRY };
 	}
